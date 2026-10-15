@@ -1,6 +1,12 @@
 # Environment: prod
 
-Real Terraform configuration and isolated state design.
+Isolated Terraform state root for production (not a workspace).
 
-**Not provisioned** for the portfolio demonstration. Exists to prove
-environment separation without creating paid production infrastructure.
+Configuration and state design exist for environment separation. **Provisioning
+this environment in AWS is not required** for Definition of Done.
+
+```bash
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform validate
+```

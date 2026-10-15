@@ -5,7 +5,7 @@ It is a requirements-driven design, not a literal copy of the specification's
 suggested code or layout.
 
 **Status:** approved (including zero-cost constraint and git ownership rule)  
-**Current milestone:** Milestone 3 complete — stop for owner commit handoff before Milestone 4  
+**Current milestone:** Milestone 4 complete — stop for owner commit handoff before Milestone 5  
 **Git ownership:** human operator only — agents never commit or push
 
 ---
@@ -407,10 +407,10 @@ Agents never stage or commit; the owner commits after reviewing the handoff.
 
 **Zero-cost required**
 
-- [ ] `terraform fmt -check` and `terraform validate` succeed (local backend).
-- [ ] No environment-specific constants in modules.
-- [ ] Module tests / validation blocks where practical.
-- [ ] No NAT Gateway resources in required examples.
+- [x] `terraform fmt -check` and `terraform validate` succeed (local backend).
+- [x] No environment-specific constants in modules.
+- [x] Module tests / validation blocks where practical.
+- [x] No NAT Gateway resources in required examples.
 
 **Optional AWS validation:** `terraform plan` against a real account (never required).
 

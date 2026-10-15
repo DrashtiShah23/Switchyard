@@ -1,0 +1,19 @@
+aws_region = "us-west-2"
+name       = "switchyard-prod"
+vpc_cidr   = "10.30.0.0/16"
+
+public_subnets = [
+  {
+    availability_zone = "us-west-2a"
+    cidr_block        = "10.30.1.0/24"
+  },
+  {
+    availability_zone = "us-west-2b"
+    cidr_block        = "10.30.2.0/24"
+  },
+]
+
+tags = {
+  Environment = "prod"
+  Owner       = "switchyard"
+}

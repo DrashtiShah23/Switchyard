@@ -30,8 +30,8 @@ test-unit: ## Run Python unit/API tests
 test-policy: ## Run OPA/Conftest policy tests (fixture-based)
 	@echo "TODO(M9+): conftest test policy/tests"
 
-validate-tf: ## Terraform fmt-check and validate (local, no AWS apply)
-	@echo "TODO(M4+): terraform fmt -check / terraform validate"
+validate-tf: ## Terraform fmt-check, validate, and module validation tests (no AWS apply)
+	bash scripts/validate_terraform.sh
 
 plan-fixtures: ## Evaluate fixture plan JSON with policy (no AWS)
 	@echo "TODO(M9+): fixture-based plan evaluation for CI"

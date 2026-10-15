@@ -17,7 +17,7 @@ the final public portfolio README.
 |---|---|
 | Engineering contract | `SWITCHYARD_BUILD_SPEC.md` |
 | Build plan (approved) | `BUILD_PLAN.md` |
-| Current milestone | **3 complete — FastAPI change request API** |
+| Current milestone | **4 complete — Terraform network module foundation** |
 
 ## Architecture (preview)
 

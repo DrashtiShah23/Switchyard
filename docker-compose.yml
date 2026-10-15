@@ -1,0 +1,22 @@
+# Local demonstration stack.
+# Milestone 1: placeholder service definition.
+# Later milestones wire the FastAPI app; no Postgres — SQLite is the local store.
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    profiles:
+      - full
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env.example
+    environment:
+      SWITCHYARD_ENV: local
+      SWITCHYARD_DATABASE_URL: sqlite:///./data/switchyard.db
+    volumes:
+      - ./data:/app/data
+    # Command wired in Milestone 3 once the app entrypoint exists.
+    command: ["python", "-c", "print('Switchyard API image stub — enable in Milestone 3')"]

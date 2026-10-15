@@ -5,7 +5,7 @@ It is a requirements-driven design, not a literal copy of the specification's
 suggested code or layout.
 
 **Status:** approved (including zero-cost constraint and git ownership rule)  
-**Current milestone:** Milestone 4 complete — stop for owner commit handoff before Milestone 5  
+**Current milestone:** Milestone 5 complete — stop for owner commit handoff before Milestone 6  
 **Git ownership:** human operator only — agents never commit or push
 
 ---
@@ -418,9 +418,9 @@ Agents never stage or commit; the owner commits after reviewing the handoff.
 
 **Zero-cost required**
 
-- [ ] Module validation rejects unsafe defaults where expressible.
-- [ ] Renderer maps change specs → deterministic Terraform inputs.
-- [ ] Configuration tests without applying cloud resources.
+- [x] Module validation rejects unsafe defaults where expressible.
+- [x] Renderer maps change specs → deterministic Terraform inputs.
+- [x] Configuration tests without applying cloud resources.
 
 **Optional AWS validation:** live plan only.
 

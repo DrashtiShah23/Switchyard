@@ -26,15 +26,25 @@ validate_root() {
 }
 
 validate_root "terraform/modules/network/examples/public_two_az"
+validate_root "terraform/modules/security_group/examples/create_with_rule"
+validate_root "terraform/modules/security_group/examples/attach_rule"
+validate_root "terraform/modules/dns/examples/record"
 validate_root "terraform/environments/dev"
 validate_root "terraform/environments/staging"
 validate_root "terraform/environments/prod"
 
-echo "==> terraform test (network variable validations)"
-(
-  cd "terraform/modules/network"
-  terraform init -backend=false -input=false >/dev/null
-  terraform test
-)
+run_module_tests() {
+  local dir="$1"
+  echo "==> terraform test: ${dir}"
+  (
+    cd "${dir}"
+    terraform init -backend=false -input=false >/dev/null
+    terraform test
+  )
+}
+
+run_module_tests "terraform/modules/network"
+run_module_tests "terraform/modules/security_group"
+run_module_tests "terraform/modules/dns"
 
 echo "==> OK: terraform static validation passed"

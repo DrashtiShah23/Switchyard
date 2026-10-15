@@ -1,32 +1,40 @@
 # Cost discipline
 
-Switchyard’s AWS path validates the **control plane**, not a highly available
-production network.
+**Hard requirement:** Switchyard’s Definition of Done is completable at **$0**.
+Do not assume AWS Free Tier makes a resource free. If a cloud action can
+potentially generate a charge, it is not required.
 
-## Locked constraints
+## Evidence classes
 
-| Constraint | Rationale |
+| Class | Claim language |
 |---|---|
-| Single AZ | Enough to exercise modules and workflows |
-| No NAT Gateway | Avoid unnecessary recurring cost |
-| Short-lived resources | Destroy the same day after validation |
-| Provision `dev` only | Staging/prod keep config + isolated state design without paid infra |
-| ALB fixed-response preferred | Proves listener/route automation without EC2 targets |
+| Implemented and locally validated | Ran on a developer machine or free CI |
+| Terraform defined and statically validated | `fmt` / `validate` / tflint / tests / policy fixtures |
+| Optionally cloud validated | Only if a real AWS run actually happened |
 
-Do not expand the demo into multi-AZ “production Box” networking.
+Never claim AWS deployment from Terraform configuration alone.
 
-## Potentially billable resources
+## Required ($0) validation
 
-| Resource | Risk | Notes |
-|---|---|---|
-| Application Load Balancer | Primary | Create only during E2E; destroy immediately after |
-| Route 53 hosted zone | Low | Short-lived or reuse an existing zone briefly |
-| S3 state bucket | Very low | Empty storage is cheap; optional retain |
-| VPC / SG / ACM (public) | Negligible / free | No NAT |
+- Local unit/integration/failure-injection tests
+- Docker Compose for local architecture/failure behavior
+- `terraform fmt`, `validate`, module/config tests
+- OPA/Conftest + plan fixtures
+- GitHub Actions without cloud deployment
 
-## Operator checklist
+## Forbidden in required workflows
 
-1. Tag every resource with project and owner metadata.
-2. Run validation only as long as needed.
-3. Run `make destroy-sandbox` (Milestone 16) before ending the day.
-4. Never leave an ALB running “for later.”
+ALB, NLB, EC2, Route 53 hosted zones, NAT Gateway, Elastic IP, ECS, RDS,
+ElastiCache, or any other potentially billable cloud resource.
+
+## Optional cloud path
+
+Operators may run AWS validation in their own accounts. That path is **not**
+part of Definition of Done. Document results only when actually executed, and
+destroy promptly afterward.
+
+## AWS-shaped without AWS bills
+
+Terraform modules and environment roots remain in the repository so the project
+stays architecturally credible for AWS. Default proof is static and local, not
+a live bill.

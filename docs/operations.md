@@ -1,42 +1,33 @@
 # Operations
 
-> Stub for Milestone 1.
-
-## Local
+## Local (required path)
 
 ```bash
 make help
 make up      # wired in Milestone 3+
 make down
-make test   # wired as suites land
+make test
 ```
 
-Persistence defaults to SQLite behind a repository interface. Do not introduce
-PostgreSQL solely for appearance.
+Persistence defaults to SQLite behind a repository interface.
 
-## CI
+Ordinary validation never requires AWS credentials or billable resources.
 
-Pull requests always run formatting, validation, lint, unit tests, policy
-tests, and fixture-based plan evaluation. They do **not** require live AWS
-credentials and must not apply infrastructure.
+## CI (required path)
 
-Real AWS-backed plan/apply runs only on an explicitly triggered
-integration/deployment workflow with GitHub Environment approval.
-
-## AWS sandbox (dev only)
-
-Constraints (locked):
-
-- Single Availability Zone
-- No NAT Gateway
-- Short-lived resources; destroy the same day
-- Do not provision paid staging/production infrastructure for the demo
-
-```bash
-make destroy-sandbox   # wired in Milestone 16
-```
+Pull requests run formatting, validation, lint, unit tests, policy tests, and
+fixture-based plan evaluation. They must not apply infrastructure and must not
+require AWS credentials.
 
 ## Saved plan apply
 
 Before apply, verify the recorded plan artifact hash. Mismatch is a hard
 failure. See [ADR-0002](adr/0002-saved-plan-apply-binding.md).
+
+Required DoD proves this with local/mock backends.
+
+## Optional AWS
+
+Cloud apply is operator-owned and not part of Definition of Done. See
+[cost.md](cost.md). Never document optional cloud results as if they were
+required, and never claim deployment that did not run.

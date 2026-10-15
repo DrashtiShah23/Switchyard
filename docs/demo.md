@@ -1,21 +1,24 @@
 # Demo
 
-> Stub for Milestone 1. Replace with reproducible steps and captured artifacts
-> as milestones complete. Do not invent results.
+> Replace stubs with reproducible steps and captured artifacts as milestones
+> complete. Do not invent results. Label evidence using the classes in
+> `docs/cost.md`.
 
-## Local (planned)
+## Local (required)
 
-1. Start the API (`make up`).
+1. Start the API (`make up` — Milestone 3+).
 2. Submit an example request from `examples/requests/`.
-3. Observe validation → change specification → fixture plan → policy result.
+3. Observe validation → change specification → plan/policy path.
 4. Inspect request status via the API.
 
-## AWS validation (planned, Milestone 16)
+Milestone 2 currently demonstrates domain validation and lifecycle locally via:
 
-Explicitly triggered only. Dev sandbox: single-AZ, no NAT, short-lived ALB
-(fixed-response), security group and DNS changes through the control plane,
-GitHub Environment approval, plan hash verification, DNS/TCP probes, then
-same-day destroy.
+```bash
+pytest tests/unit -q
+```
 
-Evidence from that run will be recorded here after it has actually been
-exercised.
+## Optional AWS
+
+Not required for Definition of Done. If an operator runs a real AWS path in
+their own account, record it only when it actually happened, and destroy any
+created resources promptly.

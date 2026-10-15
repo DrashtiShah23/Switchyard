@@ -43,9 +43,9 @@ up: ## Start local API and supporting services
 down: ## Stop local services
 	@echo "TODO(M3+): docker compose down"
 
-destroy-sandbox: ## Destroy disposable AWS dev sandbox resources
-	@echo "TODO(M16): scripts/destroy_sandbox.sh"
-	@echo "Constraint: single-AZ, no NAT, same-day destroy only."
+destroy-sandbox: ## Optional: destroy operator-owned AWS resources (never required for DoD)
+	@echo "TODO(M16 optional): scripts/destroy_sandbox.sh"
+	@echo "Definition of Done is \$0 — AWS destroy is only for optional cloud runs."
 
 clean: ## Remove local caches and generated artifacts
 	@rm -rf .pytest_cache .mypy_cache .ruff_cache .coverage htmlcov artifacts

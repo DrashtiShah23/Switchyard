@@ -17,7 +17,7 @@ the final public portfolio README.
 |---|---|
 | Engineering contract | `SWITCHYARD_BUILD_SPEC.md` |
 | Build plan (approved) | `BUILD_PLAN.md` |
-| Current milestone | **1 — repository skeleton and ADRs** |
+| Current milestone | **2 complete — domain models and lifecycle** |
 
 ## Architecture (preview)
 
@@ -49,11 +49,15 @@ flowchart LR
 
 ```bash
 make help
+pytest tests/unit -q
 ```
 
-Ordinary development is local-first: fixtures and mocked Terraform. Real AWS
-is an explicitly triggered validation path. The disposable sandbox is
-**single-AZ, no NAT Gateway, short-lived**, and must be destroyed the same day.
+**Definition of Done is $0.** Ordinary development and CI use fixtures, local
+backends, Docker Compose, and static Terraform validation. Real AWS provisioning
+is **optional** and never required. Do not assume Free Tier is free.
+
+Evidence classes: implemented and locally validated · Terraform defined and
+statically validated · optionally cloud validated (only if actually run).
 
 See `docs/cost.md` and `docs/adr/0003-local-vs-aws-execution.md`.
 

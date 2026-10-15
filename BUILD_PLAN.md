@@ -4,61 +4,169 @@ This document is the engineering plan derived from `SWITCHYARD_BUILD_SPEC.md`.
 It is a requirements-driven design, not a literal copy of the specification's
 suggested code or layout.
 
-**Status:** approved  
-**Current milestone:** Milestone 1 complete — stop for review before Milestone 2  
-**AWS validation shape (locked):** single-AZ, no NAT Gateway, short-lived
-resources destroyed the same day. Do not expand into multi-AZ “production-like”
-topology for the portfolio demonstration.
+**Status:** approved (including zero-cost constraint and git ownership rule)  
+**Current milestone:** Milestone 2 complete — stop for review before Milestone 3  
+**Git ownership:** human operator only — agents never commit or push
 
 ---
 
-## 0. Approved Decisions (locked)
+## 0a. Permanent rule: human-only Git ownership
+
+**The human repository owner is the only person allowed to create Git commits
+or push changes.** This rule is permanent and overrides any earlier
+BUILD_PLAN / BUILD_SPEC language that suggested the agent should commit after
+milestones.
+
+### Agents may
+
+- Inspect `git status`, `git diff`, and `git log`
+- Create, modify, and delete files required by approved implementation
+- Run tests, formatting, linting, type checking, and validation
+- Suggest commit boundaries and commit messages
+
+### Agents must never run
+
+- `git commit`
+- `git push`
+- `git merge`
+- `git rebase`
+- `git tag`
+- `git reset --hard`
+- `git clean`
+- `git checkout` / `git restore` commands that discard changes
+- `git add` unless the owner **explicitly** requests it
+
+### End-of-milestone handoff (mandatory)
+
+After finishing a milestone’s implementation and validation, the agent must:
+
+1. **Stop** before staging or committing anything.
+2. Show validation results.
+3. Show a concise summary of `git diff`.
+4. List all files created, modified, or deleted.
+5. Separate changes into logical commit groups when more than one commit is
+   appropriate.
+6. Give the exact suggested commit message for each group.
+7. Give the exact git commands the owner can run themselves.
+8. **Wait** for the owner to confirm they committed before starting the next
+   milestone.
+
+Never interpret “finish the milestone”, “proceed”, “continue”, or similar
+language as permission to commit.
+
+---
+
+## 0. Hard constraint: zero cost
+
+**Zero monetary cost is a hard architectural requirement for Definition of Done.**
+
+The project must be completable and fully defensible without spending any money.
+Do not assume AWS Free Tier makes a resource free. If a cloud action can
+potentially generate a charge, it must **not** be required for any milestone
+acceptance criterion or for Definition of Done.
+
+### Evidence classes (use these consistently in docs / README / resume)
+
+| Class | Meaning | Allowed claim |
+|---|---|---|
+| **Implemented and locally validated** | Code + tests ran on a developer machine or free CI | “Validated locally / in CI” |
+| **Terraform defined and statically validated** | Modules/envs exist; `fmt`, `validate`, tflint, tests, policy/fixtures | “Infrastructure designed and statically validated” |
+| **Optionally cloud validated** | Someone ran a real AWS path outside required DoD | Only if it **actually** ran; never implied |
+
+Never claim something was deployed to AWS unless it actually was.
+Never convert Terraform configuration into a false deployment claim.
+
+### Default (required) validation path — $0
+
+- `terraform fmt` / `validate` / tflint
+- Module and configuration tests
+- OPA/Conftest policy evaluation
+- Plan **fixture** based tests (committed plan JSON)
+- Python unit / integration / failure-injection tests
+- Local Docker / Docker Compose reproducing architecture and failure behavior
+- GitHub Actions within free-usage assumptions; **no cloud deployment**
+
+### Optional validation path — not required for DoD
+
+- Real AWS plan/apply against a caller-owned account
+- Must remain documented as optional
+- Must never be the only way to satisfy an acceptance criterion
+- Must not create required billable resources in the default workflow
+
+### Forbidden in any *required* workflow
+
+Do not create as part of required validation:
+
+- ALBs / NLBs
+- EC2 instances
+- Route 53 hosted zones
+- NAT Gateways
+- Elastic IPs
+- ECS services
+- RDS / ElastiCache
+- Any other potentially billable cloud resource
+
+AWS Terraform modules and environment configuration **remain in the repository**
+because IaC design is core to the project. They are statically validated by
+default; live provisioning is optional only.
+
+Engineering depth must **not** be weakened to avoid cloud costs. Replace
+cloud-dependent validation with meaningful local integration tests,
+infrastructure tests, policy tests, configuration validation, failure
+injection, and reproducible local benchmarks.
+
+---
+
+## 1. Approved Decisions (locked)
 
 These decisions supersede earlier proposals where they differ.
 
-1. **State isolation:** Separate Terraform state roots for `dev`, `staging`, and
+1. **Human-only Git ownership:** Agents never commit or push; owner alone
+   owns history. (§0a)
+2. **Zero cost DoD:** No milestone requires paid AWS (or any paid cloud) to
+   satisfy Definition of Done. (§0)
+3. **State isolation:** Separate Terraform state roots for `dev`, `staging`, and
    `prod`. Do **not** use workspaces.
-2. **State locking:** S3 native lockfile only. Do **not** introduce DynamoDB
-   solely for locking.
-3. **Request → Terraform boundary:**
+4. **State locking:** S3 native lockfile design in Terraform config. Do **not**
+   introduce DynamoDB solely for locking. Creating a real state bucket is
+   **optional** and not required for DoD (local backends + config review cover
+   the required path).
+5. **Request → Terraform boundary:**
    `API request → domain model → normalized change specification → Terraform
    inputs / module composition`. The API must never construct arbitrary HCL from
    user-supplied strings.
-4. **Human approval:** GitHub Environment approval is the **authoritative**
-   human approval boundary for real infrastructure deployment. The API may
-   expose `awaiting_approval` as workflow state only. Do **not** build a second
-   independent approval system into the API.
-5. **Duplicate DNS detection:** Distinguish static/fixture checks from live
-   inventory. Local policy tests may use a controlled inventory fixture. Real
-   AWS validation must query or reconcile against authoritative Route 53 state
-   before apply. Document the distinction; do not pretend OPA alone knows
-   current infrastructure.
-6. **CIDR overlap:** Same principle—validate against requested configuration
-   and known managed inventory locally; use authoritative infrastructure state
-   on the real integration path.
-7. **Environments:** All three environments have real Terraform configuration
-   and isolated state design. Only **dev** is provisioned for the portfolio
-   demonstration. Do not create paid staging/production infrastructure merely
-   to prove separation.
-8. **CI:** Every PR always runs fmt, validate, lint, unit tests, policy tests,
-   and fixture-based plan evaluation. A real AWS-backed plan belongs to an
-   **explicitly triggered** integration/deployment workflow—not every PR.
-9. **Persistence:** SQLite is acceptable. Keep persistence behind a repository
-   interface so PostgreSQL could replace it later without rewriting domain
-   logic. Do **not** add PostgreSQL merely for appearance.
-10. **Saved plan guarantee (core property):** Record the plan artifact hash and
-    verify it immediately before apply. This is mandatory architecture, not an
-    optional enhancement.
+6. **Human approval:** For optional real infrastructure deployment, GitHub
+   Environment approval is the authoritative human boundary. The API may expose
+   `awaiting_approval` as workflow state only. Do **not** build a second
+   independent approval system into the API. Required DoD proves the approval
+   *boundary behavior* via local/CI simulation of the gate.
+7. **Duplicate DNS detection:** Local/CI uses controlled inventory fixtures.
+   Optional AWS path may reconcile against Route 53. Document the distinction;
+   do not pretend OPA alone knows current infrastructure.
+8. **CIDR overlap:** Same principle—requested config + managed inventory
+   fixtures locally; optional authoritative cloud state only on the optional path.
+9. **Environments:** All three environments have real Terraform configuration
+   and isolated state **design**. None must be provisioned in AWS for DoD.
+10. **CI:** Every PR always runs fmt, validate, lint, unit tests, policy tests,
+    and fixture-based plan evaluation. No AWS credentials. No cloud deploy.
+11. **Persistence:** SQLite behind a repository interface. Do **not** add
+    PostgreSQL merely for appearance.
+12. **Saved plan guarantee (core property):** Record the plan artifact hash and
+    verify it immediately before apply. Mandatory architecture.
 
 ---
 
-## 1. Architecture Intent
+## 2. Architecture Intent
 
 Switchyard is a narrow **network change control plane**. Application engineers
 submit typed requests for four approved capabilities. The control plane owns
-validation, rendering, planning, policy gating, human approval (via GitHub
-Environments for real deploys), exact-plan apply, post-apply verification, and
-audit. Callers never submit raw HCL or arbitrary Terraform CLI arguments.
+validation, rendering, planning, policy gating, human-approval boundary, exact
+plan apply, post-apply verification, and audit. Callers never submit raw HCL or
+arbitrary Terraform CLI arguments.
+
+The system is **architecturally credible for AWS** (modules, providers, state
+roots, IAM-shaped least privilege docs) while remaining **fully completable at
+zero cost** via local execution and static IaC validation.
 
 ### Control flow (intended)
 
@@ -69,180 +177,156 @@ Caller
   -> Normalized change specification
   -> Terraform renderer (module composition / typed inputs — never raw user HCL)
   -> terraform plan  -> saved binary plan + plan JSON + artifact hash
-  -> OPA/Conftest on plan JSON (+ inventory fixtures locally)
+       (required path: local terraform and/or committed plan fixtures)
+  -> OPA/Conftest on plan JSON (+ inventory fixtures)
   -> State: awaiting_approval (API workflow marker only)
-  -> GitHub Environment approval (authoritative for real deploy)
+  -> Approval boundary (required: simulated gate; optional real deploy: GitHub Environment)
   -> Verify plan artifact hash
   -> terraform apply of the exact saved plan
-  -> DNS / TCP (/ optional HTTPS) verification
+       (required path: local/mock backend; optional: real AWS — never required)
+  -> DNS / TCP verification
+       (required path: local test doubles / compose services; optional: real endpoints)
   -> Audit + metrics + durable request history
 ```
 
 ### Design principles
 
-1. **Safe product API, not a Terraform proxy.** HTTP handlers validate and
-   persist; orchestration lives in services behind interfaces.
-2. **Deterministic, reviewable infrastructure.** Every apply consumes a
-   previously reviewed saved plan artifact whose hash is verified immediately
-   before apply; apply must not regenerate a plan.
-3. **Policy before mutation.** OPA evaluates plan JSON, not raw HCL, and is
-   honest about what requires live inventory.
-4. **Local-first development.** Default `make` / compose path uses fixtures
-   and mocked Terraform execution. Real AWS is an explicit validation lane.
-5. **Cheap, disposable AWS proof.** Single-AZ, no NAT, short-lived; destroy is
-   first-class. Validating the control plane is the goal—not simulating Box-scale
-   production networking.
-6. **Evidence over assertion.** README claims must come from tests, CI
-   artifacts, or exercised runs. No invented metrics or hardcoded “green”
-   results.
+1. **Safe product API, not a Terraform proxy.**
+2. **Deterministic, reviewable infrastructure** via exact saved-plan hash binding.
+3. **Policy before mutation** against plan JSON, honest about inventory limits.
+4. **Zero-cost by default.** Docker Compose + fixtures + static Terraform checks.
+5. **AWS-shaped IaC without required AWS bills.** Modules remain real; apply is optional.
+6. **Evidence over assertion.** README/resume claims match what was actually executed.
 
 ### Major architectural decisions (with reasons)
 
 | Decision | Choice | Reason |
 |---|---|---|
-| Env isolation | **Separate state roots** per `dev` / `staging` / `prod` (not workspaces) | Clear blast-radius boundaries, independent locking, simpler IAM and backend config. ADR-0001. |
-| State locking | **S3 native lockfile** (`use_lockfile = true`) | Current supported mechanism; DynamoDB not required solely for locking. |
-| Change pipeline | **Typed change specification** between domain and Terraform | Prevents arbitrary HCL from API input; keeps a reviewable intermediate artifact. |
-| Approval | **GitHub Environment** authoritative; API `awaiting_approval` is state only | One approval system for real deploys; avoid dual control-plane approval UX. |
-| DNS / CIDR checks | **Fixture inventory locally; authoritative AWS state on real path** | Honest about OPA limits; still catches unsafe patterns in CI. |
-| Env provisioning | **Config for all three; provision only `dev` for demo** | Proves isolation without paying for staging/prod. |
-| Local persistence | **SQLite behind repository interface** | Sufficient for demo; swappable without domain rewrites. |
-| Local Terraform | **Command adapter + fixtures** | Ordinary development never requires AWS. |
-| Auth (demo) | **Static API keys / bearer tokens** from env | Spec asks for local demonstration auth, not a full IdP. |
-| TLS scope | **Certificate reference / attachment** (ACM ARN) | Matches “attachment or reference”; ACM issuance optional on E2E. |
-| ALB demo shape | **Fixed-response** where possible; **single-AZ; no NAT** | Control-plane validation without EC2/NAT cost. |
-| CI plan strategy | **Always:** fmt, validate, tflint, unit, policy, fixture plan eval. **Explicit workflow:** real AWS plan/apply. | Cost discipline without weakening policy evidence. |
-| Saved plan | **Hash recorded + verified pre-apply** | Core safety property. ADR-0002. |
+| Cost model | **$0 required DoD** | Project must be completable without spending money. |
+| Env isolation | **Separate state roots** (not workspaces) | Clear blast radius; ADR-0001. |
+| State locking | **S3 native lockfile in config** | Current mechanism; real bucket optional. |
+| Change pipeline | **Typed change specification** | No arbitrary HCL from API input. |
+| Approval | **Boundary in workflow; GitHub Environment for optional real deploy** | One approval story; local simulation for DoD. |
+| DNS / CIDR | **Fixtures required; live inventory optional** | Honest OPA limits. |
+| Env AWS provision | **None required** | Config proves isolation; apply is optional. |
+| Persistence | **SQLite + repository interface** | Local, free, swappable. |
+| Terraform exec | **Adapter + fixtures + local backends** | Depth without cloud charges. |
+| CI | **fmt/validate/lint/unit/policy/fixtures only** | Free Actions assumptions; no deploy. |
+| Saved plan | **Hash verified pre-apply** | Core safety property. ADR-0002. |
 
 ---
 
-## 2. Major Components and Responsibilities
+## 3. Major Components and Responsibilities
 
 ### API service (`app/api`, `app/main.py`)
 
 - Accept change requests for DNS, LB routes, TLS binding, SG rules.
 - Authenticate demo callers; enforce idempotency keys on create.
 - Expose request status, plan, policy, and verification views.
-- Represent `awaiting_approval` as workflow state only—no independent approve API
-  that bypasses GitHub Environments for real deploys.
-- Own HTTP concerns only; no Terraform orchestration in handlers.
+- Represent `awaiting_approval` as workflow state only.
+- No Terraform orchestration in handlers.
 
 ### Domain layer (`app/domain`)
 
-- Typed models: DNS record, LB route, TLS binding, SG rule, environment,
-  change request, **normalized change specification**, plan/policy/verification
-  results, lifecycle states.
-- Pure validation and state-transition rules.
-- Provider details stay out of domain types where practical.
+- Typed models, normalized **change specification**, lifecycle state machine.
+- Network semantic validation that does not require AWS.
+- No AWS SDK, Terraform, OPA, SQLite, FastAPI routes, or subprocess logic.
 
 ### Application services (`app/services`)
 
-- Orchestrate: validate → normalize change spec → render → plan → policy →
-  awaiting_approval → (external approval) → hash verify → apply → verify.
-- Enforce lifecycle transitions and failure marking.
-- Coordinate idempotency and duplicate-intent protection.
+- Orchestrate validate → normalize → render → plan → policy → awaiting_approval
+  → approval gate → hash verify → apply → verify.
+- Idempotency and failure marking.
 
 ### Repositories (`app/repositories`)
 
-- Persist requests, plan artifact metadata (**including hash**), policy outcomes,
-  verification results, audit events.
-- Abstract storage so SQLite can later become Postgres without rewriting
-  domain or orchestration logic.
+- Persist requests, plan artifact metadata (**including hash**), policy,
+  verification, audit — behind an interface (SQLite implementation).
 
 ### Terraform adapter (`app/infrastructure`)
 
-- Accept **normalized change specifications** only; render module composition /
-  typed variable inputs (never concatenate user strings into HCL).
-- Run `terraform` via controlled argv (never user-supplied shell text).
-- Produce saved plan binary, plan JSON, and **artifact hash**.
-- Apply **only** after hash verification against the recorded identity.
+- Consume **ChangeSpecification** only; render module inputs/composition.
+- Controlled argv; saved plan + JSON + hash; apply only after hash verify.
+- Default execution uses local/mock backends and fixtures.
 
 ### Policy layer (`policy/`)
 
-- Conftest/OPA policies against Terraform plan JSON.
-- Local tests may inject controlled inventory fixtures for DNS/CIDR cases.
-- Real AWS path reconciles against authoritative inventory before apply.
-- ≥30 seeded denied fixtures with clear “which policy blocked this” reporting.
+- Conftest/OPA on plan JSON + inventory fixtures.
+- ≥30 denied fixtures with blocker reporting.
 
-### Verification (`app/verification`, `scripts/verify_*.py`)
+### Verification (`app/verification`)
 
-- DNS resolution, TCP connect, optional HTTPS + cert/status checks.
-- Bounded retries/backoff; failures mark deployment unhealthy with actionable
-  output.
+- DNS/TCP(/HTTPS) probes with retries.
+- Required path: injectable resolvers / local compose endpoints.
+- Optional path: real network endpoints (never required for DoD).
 
 ### Observability (`app/observability`)
 
-- Structured logs with the required correlation fields.
-- Prometheus-compatible `/metrics` for the minimum counters/histograms.
+- Structured logs; Prometheus-compatible `/metrics`.
 
 ### CI/CD (`.github/workflows`)
 
-- PR: fmt, validate, lint, unit tests, policy tests, fixture-based plan
-  evaluation; never auto-apply; **no required live AWS plan on every PR**.
-- Deploy / integration (explicitly triggered): protected GitHub Environment
-  approval, download exact plan, **verify artifact hash**, apply, verify,
-  persist result.
+- PR: fmt, validate, lint, unit, policy, fixture plan eval.
+- No AWS credentials, no apply, no billable cloud actions.
+- Optional workflow docs may describe cloud apply; must not be required.
 
-### Terraform modules (`terraform/modules`)
+### Terraform (`terraform/`)
 
-- `network`, `security_group`, `alb`, `listener_rule`, `dns`, `tls`
-- Typed variables, validation blocks, outputs, descriptions, pinned versions,
-  examples; tests where practical.
+- Modules for network, SG, ALB, listener rule, DNS, TLS — **defined and
+  statically validated**.
+- Environment roots for dev/staging/prod with isolated state **design**.
+- Bootstrap config for S3 + lockfile — validated as configuration; creating the
+  bucket is optional.
 
-### Bootstrap / environments (`terraform/bootstrap`, `terraform/environments`)
+### Local runtime (`docker-compose.yml`)
 
-- State bucket + locking configuration once.
-- Isolated `dev` / `staging` / `prod` roots with remote state (config for all;
-  provision `dev` only for demo).
-
----
-
-## 3. Hardest Technical and Operational Risks
-
-| Risk | Why it is hard | Mitigation |
-|---|---|---|
-| **Exact plan binding** | Easy to accidentally re-plan at apply time | Store SHA-256 of plan artifact; verify immediately before apply; tests assert apply uses saved plan only. |
-| **Concurrent changes / state lock** | Two requests can race on one state root | Serialize applies per environment in the service; surface lock errors as first-class failures; document operator retry. |
-| **Policy vs live inventory** | OPA cannot see Route 53 / SG state it was not given | Fixture inventory in local tests; authoritative AWS queries on real path; document the split clearly. |
-| **DNS propagation flakiness** | Apply success ≠ immediate resolution | Bounded retry/backoff; distinct `verifying` state; unhealthy on timeout with actionable detail. |
-| **CI without AWS vs real plan** | Live AWS plan costs credentials and money | Fixture plan evaluation always on PR; real AWS plan only on explicit integration/deploy workflow. |
-| **Cost blowups (ALB, NAT, idle resources)** | ALB is the main recurring cost; multi-AZ/NAT is tempting scope creep | **Locked:** single-AZ, no NAT, short-lived sandbox, same-day destroy. |
-| **Rollback asymmetry** | DNS, listener rules, and SG rules roll back differently | Document per-capability rollback; prefer additive reversible changes in demos. |
-| **Over-scoping** | Temptation to add HA, LocalStack, Postgres, multi-cloud, etc. | Explicit non-goals; reject impressive-but-empty tech. |
+- Reproduce API + supporting behavior and failure modes as reasonably as
+  possible without paid cloud dependencies.
 
 ---
 
-## 4. Spec Ambiguities — Resolutions
+## 4. Hardest Technical and Operational Risks
+
+| Risk | Mitigation under zero-cost |
+|---|---|
+| Exact plan binding | Hash verify + tests; local apply of saved plans |
+| Concurrent lock behavior | Simulate lock errors in adapter/failure tests |
+| Policy vs live inventory | Required fixture inventory; document optional live path |
+| DNS/TCP flakiness | Local doubles + bounded retry tests; optional real probes |
+| Fake “deployed to AWS” claims | Evidence classes in §0; README discipline |
+| Depth loss from avoiding AWS | Strong local integration, policy suite, IaC tests, failure injection |
+| Accidental billable resources | Forbidden list in §0; CI has no AWS deploy job |
+
+---
+
+## 5. Spec Ambiguities — Resolutions
 
 | Topic | Resolution |
 |---|---|
-| How requests become Terraform | Typed intermediate **change specification**; renderer emits module inputs/composition only. |
-| Human approval | GitHub Environment is authoritative for real deploy; API `awaiting_approval` is workflow state only. |
-| Authentication | Bearer API keys for local demo; no Cognito unless later requested. |
-| Duplicate DNS | Static/fixture checks locally; Route 53 reconciliation on real AWS path; document limits. |
-| CIDR overlap | Requested config + managed inventory locally; authoritative state on real path. |
-| Repository root | Repo root is the project root (no nested `switchyard/` wrapper). |
-| PR live Terraform plan | Not on every PR. Fixture-based plan evaluation always; AWS-backed plan on explicit workflow. |
-| Three AWS environments | Config + state design for all three; provision only `dev` for demo. |
-| State locking | S3 native lockfile; no DynamoDB for locking. |
-| Persistence | SQLite behind repository interface; no Postgres for show. |
+| How requests become Terraform | Typed **change specification** → module inputs only. |
+| Human approval | Workflow gate; GitHub Environment for optional real deploy. |
+| Authentication | Bearer API keys for local demo. |
+| Duplicate DNS / CIDR | Fixtures required; live reconciliation optional. |
+| Three environments | Config + state design for all; **no AWS provision required**. |
+| BUILD_SPEC “disposable AWS deployment” | Interpreted as **optional** under zero-cost hard constraint; DoD uses local + static IaC validation instead. |
+| Persistence | SQLite behind repository interface. |
+| LocalStack | Not default; only if it stays free/local and adds clear failure-fidelity value. |
 
-### Explicit non-goals (keep scope intentional)
+### Explicit non-goals
 
+- Required paid cloud usage of any kind
 - Multi-cloud providers
-- Multi-AZ / NAT Gateway “production” networking for the demo
-- Full service mesh / VPC lattice / PrivateLink productization
-- General IAM / compute / database provisioning
+- Multi-AZ / NAT “production” networking demos
+- Service mesh / VPC lattice / PrivateLink productization
+- General IAM / compute / database provisioning products
 - Multi-tenant SaaS control plane
-- Replacing Atlantis/Spacelift/TFC for all org Terraform
-- Guaranteed automated rollback across all resource types
-- Second independent API approval system for real infrastructure
-- PostgreSQL (or other heavy deps) added only for appearance
-- LocalStack as the default development path
+- Second independent API approval system
+- PostgreSQL added for appearance
+- Claiming AWS deployment without executing it
 
 ---
 
-## 5. Final Repository Structure
+## 6. Final Repository Structure
 
 ```text
 .
@@ -255,367 +339,288 @@ Caller
 ├── docker-compose.yml
 ├── .env.example
 ├── .gitignore
-├── .github/
-│   └── workflows/                # added in later milestones
+├── .github/workflows/
 ├── app/
-│   ├── __init__.py
-│   ├── main.py                   # stub until Milestone 3
-│   ├── api/
-│   ├── domain/
-│   ├── services/
-│   ├── repositories/
-│   ├── infrastructure/
-│   ├── verification/
-│   └── observability/
 ├── terraform/
-│   ├── bootstrap/
-│   ├── modules/                  # modules land in M4–M6
-│   ├── environments/
-│   │   ├── dev/
-│   │   ├── staging/
-│   │   └── prod/
+│   ├── bootstrap/          # config only required; apply optional
+│   ├── modules/
+│   ├── environments/{dev,staging,prod}/
 │   └── tests/
 ├── policy/
-│   ├── terraform/
-│   └── tests/
-│       ├── allowed/
-│       └── denied/
-├── tests/
-│   ├── unit/
-│   ├── integration/
-│   └── contract/
+├── tests/{unit,integration,contract}/
 ├── scripts/
 ├── docs/
 │   ├── architecture.md
 │   ├── threat_model.md
 │   ├── operations.md
 │   ├── demo.md
-│   ├── cost.md
+│   ├── cost.md             # zero-cost required vs optional cloud
 │   └── adr/
-│       ├── 0001-environment-state-isolation.md
-│       ├── 0002-saved-plan-apply-binding.md
-│       └── 0003-local-vs-aws-execution.md
-└── examples/
-    └── requests/
+└── examples/requests/
 ```
 
 ---
 
-## 6. Ordered Milestones and Acceptance Criteria
+## 7. Ordered Milestones and Acceptance Criteria
 
-Each milestone should end in **one coherent commit** (or a small series of
-coherent commits if a milestone is large), with formatting, lint, and tests
-green for whatever exists at that point. **Stop after each milestone’s
-validation unless explicitly told to continue.**
+Each milestone ends with validation, then **stop** for the human-owned Git
+handoff (§0a). Do not batch multiple milestones without approval.
+Every milestone below is satisfiable at **$0**.
+Agents never stage or commit; the owner commits after reviewing the handoff.
 
 ### Milestone 0 — Plan accepted
 
-**Acceptance**
-
-- [x] `BUILD_PLAN.md` reviewed; decisions in §0 locked.
-- [x] No application code required for this milestone.
+- [x] Plan reviewed; decisions locked (including zero-cost).
 
 ### Milestone 1 — Repository skeleton and ADRs
 
-**Deliver**
-
-- License, `.gitignore`, `Makefile` stubs, `pyproject.toml` skeleton,
-  `docker-compose.yml` stub, `.env.example`, docs stubs, ADR-0001/0002/0003.
-
-**Acceptance**
-
-- [x] Fresh clone shows understandable layout matching §5.
-- [x] ADRs explain state roots vs workspaces, saved-plan binding, and
-      local-vs-AWS execution (including inventory honesty and cost shape).
-- [x] `make help` lists intended targets.
+- [x] Layout, ADRs, `make help`.
 
 ### Milestone 2 — Domain models and validation
 
 **Deliver**
 
 - Domain types for four change kinds, environments, lifecycle states,
-  normalized change specification, validation rules, state transition helpers.
-- Unit tests for validation and illegal transitions.
+  normalized change specification, validation, state transitions.
+- Comprehensive unit tests.
 
-**Acceptance**
+**Acceptance (zero-cost required)**
 
-- [ ] Invalid DNS/LB/TLS/SG inputs rejected with clear errors.
-- [ ] Lifecycle transitions enforced in domain tests (no handler logic yet).
-- [ ] Change specification is a distinct typed artifact (not raw HCL).
+- [x] Invalid DNS/LB/TLS/SG inputs rejected with clear errors.
+- [x] Lifecycle transitions enforced in domain tests (no handler logic yet).
+- [x] Change specification is a distinct typed artifact (not raw HCL).
+
+**Optional AWS validation:** none for this milestone.
 
 ### Milestone 3 — FastAPI change request API (persistence + status)
 
-**Deliver**
+**Zero-cost required**
 
-- Endpoints: `POST /v1/changes`, `GET /v1/changes/{id}`, plan/policy/verification
-  stubs, `GET /health`.
-- Idempotency keys; SQLite behind repository interface; demo auth; request IDs.
-- No independent approve-for-apply API for real infrastructure.
+- [ ] Create returns stable `request_id`; idempotent replay returns same request.
+- [ ] Handlers contain no Terraform subprocess / HCL construction from user strings.
+- [ ] Auth, validation, create/get covered by local tests.
+- [ ] Runnable via local process and/or Docker Compose.
 
-**Acceptance**
-
-- [ ] Create returns stable `request_id`; duplicate idempotency key returns the
-      same logical request.
-- [ ] Handlers contain no Terraform subprocess calls and do not build HCL from
-      user strings.
-- [ ] Unit/API tests cover auth failure, validation failure, happy create/get.
+**Optional AWS validation:** none.
 
 ### Milestone 4 — Terraform module foundation (network + shared patterns)
 
-**Deliver**
+**Zero-cost required**
 
-- Version-pinned AWS provider pattern; `network` module with typed variables,
-  validation, outputs, example; environment root skeletons for all three envs.
+- [ ] `terraform fmt -check` and `terraform validate` succeed (local backend).
+- [ ] No environment-specific constants in modules.
+- [ ] Module tests / validation blocks where practical.
+- [ ] No NAT Gateway resources in required examples.
 
-**Acceptance**
-
-- [ ] `terraform fmt -check` and `terraform validate` succeed for the module
-      (local backend / no paid resources required).
-- [ ] No environment-specific constants embedded in modules.
-- [ ] Network module defaults assume single-AZ-capable composition (no NAT).
+**Optional AWS validation:** `terraform plan` against a real account (never required).
 
 ### Milestone 5 — Security group + DNS modules
 
-**Deliver**
+**Zero-cost required**
 
-- `security_group` and `dns` modules with validation/outputs/examples.
-- Domain → change spec → render path for SG and DNS (mock executor OK in app tests).
+- [ ] Module validation rejects unsafe defaults where expressible.
+- [ ] Renderer maps change specs → deterministic Terraform inputs.
+- [ ] Configuration tests without applying cloud resources.
 
-**Acceptance**
-
-- [ ] Module input validation rejects obviously unsafe defaults where
-      expressible in Terraform `validation` blocks.
-- [ ] Renderer produces deterministic composition inputs from change specs.
+**Optional AWS validation:** live plan only.
 
 ### Milestone 6 — ALB + listener rule + TLS modules
 
-**Deliver**
+**Zero-cost required**
 
-- `alb`, `listener_rule`, `tls` (reference/attachment) modules.
-- Remaining change types wired through renderer.
+- [ ] All four request types render to Terraform inputs.
+- [ ] Modules expose outputs needed for cross-stack refs / verification contracts.
+- [ ] Modules are `fmt`/`validate`/test clean; **no required apply** of ALB/NLB.
 
-**Acceptance**
-
-- [ ] All four request types can be rendered to Terraform inputs.
-- [ ] Modules expose outputs needed for cross-stack references and verification.
-- [ ] ALB examples prefer fixed-response; no required EC2 targets for demo path.
+**Optional AWS validation:** live plan/apply explicitly opted into by the operator.
 
 ### Milestone 7 — Terraform command adapter + plan artifacts
 
-**Deliver**
+**Zero-cost required**
 
-- Adapter: plan → save binary + JSON + **hash**; show; apply-from-saved-plan
-  with pre-apply hash verification.
-- Unit tests with injected command runner (mocks OK here).
-
-**Acceptance**
-
-- [ ] Apply path refuses to run without a saved plan path.
-- [ ] Plan identity (hash) stored on the request record.
-- [ ] Mismatched hash is rejected before apply.
+- [ ] Plan → saved binary/JSON + hash (local terraform or injected runner).
+- [ ] Apply refuses missing plan; mismatched hash rejected.
 - [ ] No user-controlled arbitrary Terraform flags.
+- [ ] Integration tests cover hash binding without AWS.
 
-### Milestone 8 — Remote state, bootstrap, environment isolation
+**Optional AWS validation:** none required.
 
-**Deliver**
+### Milestone 8 — Remote state design and environment isolation
 
-- Bootstrap for S3 backend + native lockfile.
-- `dev` / `staging` / `prod` roots with separate backends (provision guidance:
-  demo uses `dev` only).
-- Cross-stack outputs / `terraform_remote_state` for foundation → edge.
+**Zero-cost required**
 
-**Acceptance**
+- [ ] Three environment roots with distinct backend configuration/state keys.
+- [ ] ADR/docs explain workspaces rejection and S3 lockfile design.
+- [ ] Cross-stack dependency wiring via outputs (config-level).
+- [ ] Local backend path works for demo applies.
+- [ ] Bootstrap module/config exists and is statically validated — **creating a
+      real S3 bucket is optional**.
 
-- [ ] Three environment roots exist with distinct state keys/prefixes.
-- [ ] Docs explain bootstrap and why workspaces were rejected.
-- [ ] Cross-stack dependency uses outputs, not copied literals.
+**Optional AWS validation:** bootstrap + remote state in a real account.
 
 ### Milestone 9 — OPA/Conftest policy engine
 
-**Deliver**
-
-- Policies for the spec’s rejection categories.
-- Allowed + denied fixtures; inventory fixtures where DNS/CIDR need them.
-- Docs noting static vs live inventory limits.
-
-**Acceptance**
+**Zero-cost required**
 
 - [ ] `conftest test` runs locally without AWS.
-- [ ] Each policy has at least one allowed and one denied fixture.
-- [ ] Failure messages identify the blocking policy.
+- [ ] Allowed + denied fixtures per rule; clear blocker messages.
+- [ ] Inventory fixtures for DNS/CIDR cases; limits documented.
+
+**Optional AWS validation:** evaluate a live-produced plan JSON offline.
 
 ### Milestone 10 — ≥30 negative policy fixtures
 
-**Deliver**
+**Zero-cost required**
 
-- Seeded unsafe plan JSON cases across categories; blocker reporting.
+- [ ] ≥30 denied cases fail for the expected policy in CI/local.
+- [ ] Deterministic suite; no hardcoded “pass” docs standing in for output.
 
-**Acceptance**
-
-- [ ] At least thirty denied cases fail for the expected policy.
-- [ ] Suite is deterministic in CI; no hardcoded pass documentation.
+**Optional AWS validation:** none.
 
 ### Milestone 11 — GitHub Actions PR pipeline
 
-**Deliver**
+**Zero-cost required**
 
-- `pull_request.yml`: fmt, validate, tflint, unit tests, policy tests,
-  fixture-based plan evaluation. No apply. No required live AWS plan.
+- [ ] PR workflow: fmt, validate, lint, unit, policy, fixture plan evaluation.
+- [ ] No AWS credentials; no apply; no billable cloud actions.
+- [ ] Stays within free GitHub Actions assumptions for a typical private/public repo.
 
-**Acceptance**
+**Optional AWS validation:** none in PR CI.
 
-- [ ] PR workflow runs on a clean checkout.
-- [ ] Policy / fixture plan evaluation failures fail the job.
-- [ ] Workflow does not apply infrastructure and does not require AWS creds.
+### Milestone 12 — Approval boundary + saved-plan apply path
 
-### Milestone 12 — Approval + saved-plan apply path
+**Zero-cost required**
 
-**Deliver**
+- [ ] Local/CI path demonstrates approval gate → hash verify → apply **exact**
+      saved plan (local/mock backend).
+- [ ] Tampered/mismatched hash rejected.
+- [ ] Apply path does not silently regenerate a plan.
+- [ ] Workflow YAML documents how GitHub Environment would gate an optional
+      real deploy — without requiring that deploy.
 
-- Deploy/integration workflow with **GitHub Environment** protection.
-- Artifact download; **hash verification**; apply exact plan; persist result.
-- API may mark `awaiting_approval` but does not own a second approval system.
-
-**Acceptance**
-
-- [ ] Real deploy path requires GitHub Environment approval.
-- [ ] Tampered / mismatched plan hash is rejected.
-- [ ] Apply job does not silently generate a new plan.
+**Optional AWS validation:** GitHub Environment-protected apply to a real account.
 
 ### Milestone 13 — DNS and TCP verification
 
-**Deliver**
+**Zero-cost required**
 
-- Probes with timeout, bounded backoff, actionable failures; API exposure.
+- [ ] Probes with timeout/backoff; injectable dependencies.
+- [ ] Local integration against Compose or test doubles.
+- [ ] Verification failure marks request unhealthy/failed.
 
-**Acceptance**
-
-- [ ] Unit tests cover retry/failure with injected resolvers/sockets.
-- [ ] Verification failure marks request unhealthy/failed appropriately.
+**Optional AWS validation:** probes against real endpoints after optional apply.
 
 ### Milestone 14 — Observability and audit history
 
-**Deliver**
+**Zero-cost required**
 
-- Structured logging; `/metrics`; audit via request history.
+- [ ] Required log fields; `/metrics`; no credential leakage; local tests.
 
-**Acceptance**
-
-- [ ] Required log fields present where applicable.
-- [ ] Minimum metrics exposed and asserted via endpoint tests.
-- [ ] Credentials never logged.
+**Optional AWS validation:** none.
 
 ### Milestone 15 — Failure injection tests
 
-**Deliver**
+**Zero-cost required**
 
-- Lock, plan failure, policy unavailable/rejection, apply failure, DNS delay,
-  TCP verify failure, partial dependency failure, duplicate request, retry.
+- [ ] Lock, plan failure, policy unavailable/rejection, apply failure, DNS delay,
+      TCP verify failure, partial dependency failure, duplicate request, retry.
+- [ ] Retries do not duplicate intent for identical idempotency keys.
 
-**Acceptance**
+**Optional AWS validation:** none.
 
-- [ ] Each failure mode has an automated test with expected state/outcome.
-- [ ] Retries do not create duplicate intent for identical idempotency keys.
+### Milestone 16 — End-to-end control-plane validation (required local) + optional AWS
 
-### Milestone 16 — AWS end-to-end validation (real resources)
+**Zero-cost required**
 
-**Deliver**
+- [ ] Full workflow exercised locally: request → validate → change spec → plan
+      fixture or local plan → policy → approval gate → hash verify → apply
+      (local backend) → verification doubles → audit.
+- [ ] Evidence captured from the actual local/CI run.
+- [ ] README/demo distinguish evidence classes (§0).
+- [ ] No billable AWS resources created by the required path.
 
-- Disposable **dev** sandbox only: single-AZ, no NAT, short-lived ALB
-  (fixed-response), SG + DNS path through the control plane.
-- Real plan → policy → GitHub Environment approval → hash verify → apply →
-  verify → **same-day destroy**.
-- Live Route 53 / inventory reconciliation for DNS (and CIDR where applicable).
+**Optional AWS validation**
 
-**Acceptance**
-
-- [ ] Executed against real AWS (not mocks); evidence recorded from the run.
-- [ ] Post-apply DNS and TCP verification exercised.
-- [ ] Staging/prod AWS resources were not provisioned for the demo.
-- [ ] Destroy completed (or residual free leftovers documented, e.g. empty state bucket).
-- [ ] No invented metrics.
+- [ ] Operator-run sandbox apply in their own account, if they choose.
+- [ ] Only document results if actually executed.
+- [ ] Must still avoid leaving billable resources running; destroy immediately.
+- [ ] Not required for Definition of Done.
 
 ### Milestone 17 — Documentation and demo polish
 
-**Deliver**
+**Zero-cost required**
 
-- Public README (Mermaid, capabilities, real CI/fixture policy evidence,
-  limitations, cost notes), architecture, threat model, operations, demo.
+- [ ] README with Mermaid, capabilities, policy rejection evidence from CI/local,
+      limitations, **zero-cost notes**, evidence-class labeling.
+- [ ] Architecture, threat model, operations, demo runnable without AWS.
+- [ ] No fabricated benchmarks; no false AWS deployment claims.
 
-**Acceptance**
-
-- [ ] Another engineer can run local demo from README alone.
-- [ ] Senior-review questions answered in ADRs/docs.
-- [ ] No job-application framing; no fabricated benchmarks.
+**Optional AWS validation:** appendix optional cloud results only if real.
 
 ---
 
-## 7. Local vs AWS Milestones
+## 8. Local vs optional cloud
 
-| Milestone | Entirely local? | Notes |
+| Milestone | Required path | Optional cloud |
 |---|---|---|
-| 0 Plan | Yes | Done |
-| 1 Skeleton + ADRs | Yes | |
-| 2 Domain | Yes | |
-| 3 API + SQLite | Yes | |
-| 4–6 Terraform modules | Mostly local | fmt/validate/test without paid apply |
-| 7 Adapter | Yes | Mocks for unit tests |
-| 8 Remote state design | Config local; bucket bootstrap needs AWS when first created | |
-| 9–10 Policy | Yes | Plan JSON + inventory fixtures |
-| 11 PR CI | Yes | No AWS required |
-| 12 Approval/apply path | Workflow+logic local; real apply needs AWS | |
-| 13 Verification | Unit local; real DNS/TCP needs deployed resources | |
-| 14 Observability | Yes | |
-| 15 Failure tests | Yes | |
-| 16 AWS E2E | **Requires real AWS (`dev` only)** | Single-AZ, no NAT, destroy same day |
-| 17 Docs | Yes | May embed M16 artifacts |
+| 0–3 | Local only | — |
+| 4–6 | fmt/validate/tflint/tests | live `plan`/`apply` |
+| 7 | Local adapter + fixtures | — |
+| 8 | Config + local backend | real S3 bootstrap |
+| 9–11 | Local + free CI | offline eval of a live plan JSON |
+| 12–15 | Local/Compose/CI | real deploy/probes |
+| 16 | **Local E2E required** | AWS E2E optional |
+| 17 | Docs from required evidence | optional cloud appendix |
 
 ---
 
-## 8. Cheapest Credible AWS Validation Path (locked)
+## 9. Cost policy (locked)
 
-### Constraints (do not “improve” away)
+### Required
 
-- Single Availability Zone
-- No NAT Gateway
-- No multi-AZ ALB “HA” topology for the demo
-- Short-lived resources; destroy the same day
-- Provision **dev only**
-- Prefer ALB **fixed-response** over EC2 targets
-- Goal: validate the **control plane**, not operate production-scale networking
+- Spend **$0**.
+- Validate with local tooling, Docker Compose, fixtures, and free CI.
+- Keep AWS-shaped Terraform in-repo and statically validated.
 
-### Billable / potentially billable resources
+### Optional cloud (operator-owned)
 
-| Resource | Why needed | Cost risk | Discipline |
-|---|---|---|---|
-| S3 state bucket | Remote state + lockfile | Very low | Optional retain empty; or destroy |
-| VPC + subnets (single AZ) | Foundation | Free | No NAT |
-| Security groups | Core capability | Free | |
-| Application Load Balancer | Listener/route proof | **Primary cost** | Same-day destroy |
-| Listener rules / fixed-response | Route proof without EC2 | With ALB | Prefer fixed-response |
-| Route 53 hosted zone | DNS proof | Low if short-lived | Destroy or reuse existing zone briefly |
-| ACM certificate | Optional TLS path | Free (public) | Optional for first E2E |
-| EC2 / NAT / RDS / ECS / multi-AZ | Not required | Avoid | Out of scope |
+If someone opts into AWS despite DoD not requiring it:
 
----
+- They accept any charges.
+- Do not create the forbidden required-workflow resources as part of **project CI**.
+- Document results only when actually run.
+- Destroy promptly; never leave ALBs/zones/etc. running “for the portfolio.”
 
-## 9. Mapping Resume Claims → Evidence
+### Claim hygiene
 
-| Claim | Evidence source |
+| OK | Not OK |
 |---|---|
-| FastAPI for DNS/LB/TLS/SG requests | API + unit/contract tests; example requests |
-| Versioned Terraform modules with validation | Modules + validate/tests in CI |
-| Isolated envs + remote state | `environments/*` + bootstrap + ADR-0001; `dev` provisioned in M16 |
-| Cross-stack via outputs | Edge stack remote state; docs |
-| CI fmt/validate/lint/policy + fixture plan eval | `pull_request.yml` logs |
-| Unsafe changes rejected | ≥30 denied fixtures + CI policy job output |
-| Only reviewed saved plan applied | Deploy workflow + **hash verification** + tests |
-| Post-apply DNS/TCP verification | Verification tests + AWS E2E artifacts |
-| ≥30 unsafe suite | `policy/tests/denied` + reporter |
+| “Terraform modules for ALB/DNS/SG validated with fmt/validate/policy fixtures” | “Deployed ALB to AWS” (unless true) |
+| “Saved plan hash binding verified in local integration tests” | “Production AWS apply pipeline exercised” (unless true) |
+| “DNS/TCP verification implemented and tested with local doubles” | “Verified against Route 53 / live ALB” (unless true) |
 
 ---
 
-## 10. Proposed Commit Cadence (Git History)
+## 10. Mapping resume claims → evidence (zero-cost)
+
+| Claim | Required evidence |
+|---|---|
+| FastAPI for DNS/LB/TLS/SG requests | API + local tests + examples |
+| Versioned Terraform modules with validation | Modules + fmt/validate/tests in CI |
+| Isolated envs + remote state **design** | `environments/*` + bootstrap config + ADR-0001 |
+| Cross-stack via outputs | Config wiring + docs |
+| CI fmt/validate/lint/policy + fixture plan eval | `pull_request.yml` logs |
+| Unsafe changes rejected | ≥30 denied fixtures + CI output |
+| Only reviewed saved plan applied | Hash verify tests + local apply path |
+| Post-apply DNS/TCP verification | Local verification tests (+ optional cloud if run) |
+| ≥30 unsafe suite | `policy/tests/denied` |
+
+---
+
+## 11. Suggested commit cadence (owner-executed)
+
+These are **suggestions for the human owner**. Agents propose messages and
+commands; only the owner runs `git add` / `git commit` / `git push`.
 
 1. `docs: add build plan and repository skeleton with ADRs`
 2. `feat(domain): add change models, validation, and lifecycle transitions`
@@ -624,31 +629,32 @@ validation unless explicitly told to continue.**
 5. `feat(terraform): add security group and DNS modules`
 6. `feat(terraform): add ALB, listener rule, and TLS modules`
 7. `feat(infra): add Terraform plan/apply adapter with plan identity`
-8. `feat(terraform): add S3 backend bootstrap and env state isolation`
+8. `feat(terraform): add state backend design and env isolation`
 9. `feat(policy): add OPA/Conftest policies for plan JSON`
 10. `test(policy): add thirty-plus denied infrastructure fixtures`
 11. `ci: add pull request fmt validate lint test and policy workflow`
-12. `feat(deploy): bind GitHub Environment approval to exact saved plan apply`
-13. `feat(verify): add DNS and TCP post-apply verification`
+12. `feat(deploy): bind approval gate to exact saved plan apply`
+13. `feat(verify): add DNS and TCP verification with local doubles`
 14. `feat(obs): add structured audit logs and metrics`
 15. `test: add failure injection coverage for control plane paths`
-16. `docs: record AWS sandbox validation evidence and destroy procedure`
-17. `docs: polish README, architecture, threat model, and demo`
+16. `test: add local end-to-end control-plane validation evidence`
+17. `docs: polish README with zero-cost evidence classes`
 
----
-
-## 11. Deferred / optional questions
-
-Resolved items are in §0. Still optional when reaching M16:
-
-1. **Route 53:** Create a short-lived hosted zone in the sandbox, or reuse an
-   existing personal zone/subdomain?
-2. **TLS in first AWS E2E:** Certificate ARN reference only, or include ACM
-   issuance in the first pass?
+Zero-cost plan updates and the git-ownership rule may land as separate
+owner commits (for example `docs: lock zero-cost DoD` and
+`docs: record human-only git ownership rule`) when those changes are ready.
 
 ---
 
 ## 12. Stop discipline
 
-After each milestone: validate acceptance criteria, then **stop** until told to
-continue. Do not batch multiple milestones without approval.
+After each milestone:
+
+1. Validate acceptance criteria ($0 path).
+2. Perform the §0a Git handoff (results, diff summary, file list, suggested
+   commits/commands).
+3. **Stop.** Do not stage or commit.
+4. Wait for the owner to confirm commits before the next milestone.
+
+Do not batch multiple milestones without approval.
+Never treat “proceed” / “continue” / “finish” as commit permission.

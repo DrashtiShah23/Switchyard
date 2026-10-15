@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Destroy the disposable AWS dev sandbox.
-# Implemented in Milestone 16. Constraints: single-AZ, no NAT, same-day destroy.
+# Optional helper for operator-owned AWS cleanup.
+# Definition of Done is $0 — this script is never required for project completion.
+# Implemented only if/when an optional cloud validation path is exercised.
 
 set -euo pipefail
 
-echo "destroy_sandbox.sh: not implemented until Milestone 16."
-echo "When implemented, this must tear down the short-lived dev sandbox only."
+echo "destroy_sandbox.sh: optional AWS cleanup; not required for Definition of Done."
+echo "Not implemented until an optional cloud path is explicitly exercised."
 exit 1

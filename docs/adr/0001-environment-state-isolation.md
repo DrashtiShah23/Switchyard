@@ -27,7 +27,9 @@ Additionally:
 
 - All three environments have real Terraform configuration and isolated
   backend design in the repository.
-- Only **dev** is provisioned for the portfolio demonstration.
+- **No environment must be provisioned in AWS for Definition of Done**
+  (zero-cost hard constraint). Live provision remains optional and
+  operator-owned.
 - Do not create paid staging or production infrastructure merely to prove
   that environment folders exist.
 
@@ -59,5 +61,5 @@ for this project.
 
 ## Related
 
-- ADR-0003 (local vs AWS execution; provision `dev` only for demo)
+- ADR-0003 (zero-cost local validation vs optional AWS)
 - `docs/cost.md`

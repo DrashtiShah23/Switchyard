@@ -1,86 +1,83 @@
-# ADR-0003: Local-first execution vs explicit AWS validation
+# ADR-0003: Zero-cost local validation vs optional AWS execution
 
 ## Status
 
-Accepted
+Accepted (updated for zero-cost hard constraint)
 
 ## Context
 
-The specification requires:
+The original build specification described disposable AWS validation. A later
+project-wide constraint makes **zero monetary cost** a hard requirement for
+Definition of Done: the project must be completable and defensible without
+spending money, and Free Tier must not be treated as “free.”
 
-- Ordinary development without paid AWS.
-- Real AWS validation for Definition of Done.
-- CI policy evidence.
-- Cost discipline.
+These goals must coexist with:
 
-These goals conflict if every PR performs a live AWS `terraform plan`, or if
-mocks are used to claim AWS integration is complete.
+- Keeping real AWS-shaped Terraform in the repository (IaC depth matters).
+- Not weakening engineering rigor merely to avoid cloud bills.
+- Never claiming AWS deployment that did not happen.
 
 ## Decision
 
-### Local / PR path (default)
+### Required path ($0)
 
-- API and unit tests use fixtures and a mocked Terraform command adapter where
-  appropriate.
-- Persistence is **SQLite** behind a repository interface (no PostgreSQL for
-  appearance).
-- CI on every pull request **always** runs: format, validate, lint, unit
-  tests, policy tests, and **fixture-based plan evaluation**.
-- CI on pull requests does **not** require AWS credentials and does **not**
-  apply infrastructure.
+- Local FastAPI + SQLite + Docker Compose.
+- Terraform `fmt` / `validate` / tflint / module and configuration tests.
+- OPA/Conftest against plan JSON fixtures and controlled inventory fixtures.
+- Terraform command adapter tested with fixtures / local backends.
+- Saved plan **hash binding** verified without cloud apply.
+- DNS/TCP verification tested with injectable doubles / local endpoints.
+- GitHub Actions: fmt, validate, lint, unit, policy, fixture plan evaluation.
+  No AWS credentials. No cloud deploy.
 
-### Explicit AWS path
+### Optional path (not DoD)
 
-- Real AWS-backed plan/apply runs only on an **explicitly triggered**
-  integration/deployment workflow.
-- Authoritative human approval for real deploy: **GitHub Environment**.
-- Provision **dev only** for the portfolio demonstration.
-- Sandbox shape is locked: **single-AZ, no NAT Gateway, short-lived,
-  destroy the same day**. Prefer ALB fixed-response over EC2 targets.
-- Do not expand the demo into multi-AZ “production-grade” networking. The
-  goal is validating the control plane.
+- Real AWS `plan`/`apply` in an operator-owned account.
+- Live Route 53 / SG inventory reconciliation.
+- GitHub Environment approval gating a real deploy workflow.
+
+Optional results may be documented **only when actually executed**.
 
 ### Inventory honesty (DNS and CIDR)
 
-OPA evaluating plan JSON cannot magically know live Route 53 or all existing
-security group rules unless that inventory is supplied.
-
-| Path | DNS duplicate / CIDR overlap behavior |
+| Path | Behavior |
 |---|---|
-| Local / CI | Validate against requested configuration and a **controlled inventory fixture** (and plan JSON). |
-| Real AWS integration | **Query or reconcile** against authoritative infrastructure state (e.g. Route 53) before apply. |
+| Required local/CI | Requested config + **controlled inventory fixtures** + plan JSON |
+| Optional AWS | Query/reconcile authoritative cloud state before apply |
 
-Document this distinction in policy docs and demos. Do not pretend OPA alone
-knows current infrastructure.
+Do not pretend OPA alone knows live infrastructure.
 
 ### Change specification boundary
-
-Regardless of execution mode:
 
 `API request → domain model → normalized change specification → Terraform
 inputs / module composition`
 
-The API never constructs arbitrary HCL from user-supplied strings.
+No arbitrary HCL from user-supplied strings in any path.
+
+### Claim hygiene
+
+Distinguish in README/docs:
+
+1. Implemented and locally validated
+2. Terraform defined and statically validated
+3. Optionally cloud validated
 
 ## Consequences
 
 ### Positive
 
-- Developers can iterate without a bill.
-- Policy evidence is reproducible in CI via fixtures.
-- AWS validation remains real when it runs (mocks do not satisfy AWS
-  acceptance criteria).
-- Cost and scope stay intentionally small.
+- Fully defensible portfolio project at $0.
+- IaC and control-plane depth preserved via static + local rigorous tests.
+- No pressure to leave billable resources running for screenshots.
 
 ### Negative
 
-- PR CI does not by itself prove live AWS plan success (accepted; proven on
-  the explicit workflow and Milestone 16).
-- Maintainers must keep inventory fixtures and live reconciliation logic
-  aligned with documented limits.
+- Live AWS behavior is not proven unless someone opts in (accepted).
+- Resume/README must not overclaim deployment.
 
 ## Related
 
-- ADR-0001 (state roots; config for all envs, provision `dev` only)
-- ADR-0002 (saved plan hash on the real apply path)
+- ADR-0001 (state roots; config for all envs; no required provision)
+- ADR-0002 (saved plan hash — required locally)
 - `docs/cost.md`
+- `BUILD_PLAN.md` §0

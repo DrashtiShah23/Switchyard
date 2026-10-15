@@ -1,11 +1,21 @@
-"""Application entrypoint.
+"""Application entrypoint."""
 
-Milestone 1: stub only. FastAPI app is introduced in Milestone 3.
-"""
+from __future__ import annotations
+
+import uvicorn
+
+from app.api.app import create_app
+
+app = create_app()
 
 
 def main() -> None:
-    raise SystemExit("Switchyard API is not implemented yet. Continue with Milestone 3.")
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=False,
+    )
 
 
 if __name__ == "__main__":

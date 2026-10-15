@@ -17,7 +17,7 @@ the final public portfolio README.
 |---|---|
 | Engineering contract | `SWITCHYARD_BUILD_SPEC.md` |
 | Build plan (approved) | `BUILD_PLAN.md` |
-| Current milestone | **2 complete — domain models and lifecycle** |
+| Current milestone | **3 complete — FastAPI change request API** |
 
 ## Architecture (preview)
 

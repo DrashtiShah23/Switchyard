@@ -1,0 +1,11 @@
+{
+  "environment": "dev",
+  "change": {
+    "change_type": "dns_record",
+    "action": "create",
+    "name": "app.example.com",
+    "record_type": "A",
+    "values": ["1.2.3.4"],
+    "ttl_seconds": 300
+  }
+}

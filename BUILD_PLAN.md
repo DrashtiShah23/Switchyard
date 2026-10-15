@@ -5,7 +5,7 @@ It is a requirements-driven design, not a literal copy of the specification's
 suggested code or layout.
 
 **Status:** approved (including zero-cost constraint and git ownership rule)  
-**Current milestone:** Milestone 2 complete — stop for review before Milestone 3  
+**Current milestone:** Milestone 3 complete — stop for owner commit handoff before Milestone 4  
 **Git ownership:** human operator only — agents never commit or push
 
 ---
@@ -396,10 +396,10 @@ Agents never stage or commit; the owner commits after reviewing the handoff.
 
 **Zero-cost required**
 
-- [ ] Create returns stable `request_id`; idempotent replay returns same request.
-- [ ] Handlers contain no Terraform subprocess / HCL construction from user strings.
-- [ ] Auth, validation, create/get covered by local tests.
-- [ ] Runnable via local process and/or Docker Compose.
+- [x] Create returns stable `request_id`; idempotent replay returns same request.
+- [x] Handlers contain no Terraform subprocess / HCL construction from user strings.
+- [x] Auth, validation, create/get covered by local tests.
+- [x] Runnable via local process and/or Docker Compose.
 
 **Optional AWS validation:** none.
 

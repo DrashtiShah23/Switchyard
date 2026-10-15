@@ -12,14 +12,20 @@ license = { text = "MIT" }
 authors = [{ name = "Switchyard contributors" }]
 dependencies = [
   "pydantic>=2.0",
+  "fastapi>=0.110",
+  "uvicorn[standard]>=0.27",
 ]
 
 [project.optional-dependencies]
 dev = [
   "pytest>=8.0",
+  "httpx>=0.27",
   "ruff>=0.6",
   "mypy>=1.8",
 ]
+
+[project.scripts]
+switchyard = "app.main:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -43,3 +49,7 @@ strict = true
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = ["uvicorn", "uvicorn.*"]
+ignore_missing_imports = true

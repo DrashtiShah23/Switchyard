@@ -1,9 +1,8 @@
 # Switchyard — common developer targets
-# Milestone 1: stubs only. Later milestones wire real commands.
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install fmt lint test test-unit test-policy validate-tf \
+.PHONY: help install fmt lint typecheck test test-unit test-policy validate-tf \
 	plan-fixtures up down destroy-sandbox clean
 
 help: ## Show available targets
@@ -11,22 +10,22 @@ help: ## Show available targets
 		/^[a-zA-Z0-9_-]+:.*?##/ { printf "  %-20s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
 install: ## Install Python package and dev dependencies
-	@echo "TODO(M2+): install via pyproject.toml (uv/pip)"
-	@echo "  Example: pip install -e \".[dev]\""
+	pip install -e ".[dev]"
 
-fmt: ## Format Python and Terraform sources
-	@echo "TODO(M2+): ruff format / terraform fmt"
+fmt: ## Format Python sources
+	ruff format app tests
 
-lint: ## Lint Python and Terraform sources
-	@echo "TODO(M2+): ruff check / tflint"
+lint: ## Lint Python sources
+	ruff check app tests
+
+typecheck: ## Run mypy on the application package
+	mypy app
 
 test: ## Run the default local test suite
-	@echo "TODO(M2+): pytest"
-	@$(MAKE) test-unit
-	@$(MAKE) test-policy
+	pytest -q
 
-test-unit: ## Run Python unit tests
-	@echo "TODO(M2+): pytest tests/unit"
+test-unit: ## Run Python unit/API tests
+	pytest -q tests/unit tests/contract
 
 test-policy: ## Run OPA/Conftest policy tests (fixture-based)
 	@echo "TODO(M9+): conftest test policy/tests"
@@ -37,11 +36,12 @@ validate-tf: ## Terraform fmt-check and validate (local, no AWS apply)
 plan-fixtures: ## Evaluate fixture plan JSON with policy (no AWS)
 	@echo "TODO(M9+): fixture-based plan evaluation for CI"
 
-up: ## Start local API and supporting services
-	@echo "TODO(M3+): docker compose up --build"
+up: ## Start local API via Docker Compose
+	mkdir -p data
+	docker compose up --build -d
 
-down: ## Stop local services
-	@echo "TODO(M3+): docker compose down"
+down: ## Stop local Docker Compose services
+	docker compose down
 
 destroy-sandbox: ## Optional: destroy operator-owned AWS resources (never required for DoD)
 	@echo "TODO(M16 optional): scripts/destroy_sandbox.sh"

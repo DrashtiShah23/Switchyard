@@ -13,7 +13,14 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.change_spec import ChangeSpecification
-from app.domain.changes import DnsRecordChange, SecurityGroupRuleChange
+from app.domain.changes import (
+    DnsRecordChange,
+    FixedResponseAction,
+    ForwardAction,
+    LoadBalancerRouteChange,
+    SecurityGroupRuleChange,
+    TlsBindingChange,
+)
 from app.domain.enums import DesiredAction, IpProtocol, TrafficDirection
 from app.domain.errors import DomainValidationError
 
@@ -24,6 +31,8 @@ class RenderContext(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     hosted_zone_id: str | None = None
+    # Keys: "{load_balancer_name}:{listener_port}" → listener ARN
+    listener_arns: dict[str, str] = Field(default_factory=dict)
 
 
 class TerraformModuleInput(BaseModel):
@@ -31,7 +40,7 @@ class TerraformModuleInput(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    module_name: Literal["dns", "security_group"]
+    module_name: Literal["dns", "security_group", "listener_rule", "tls"]
     variables: dict[str, Any] = Field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -45,11 +54,11 @@ class TerraformModuleInput(BaseModel):
 
 
 class UnsupportedChangeForRenderer(DomainValidationError):
-    """Change type is valid in domain but not rendered in this milestone."""
+    """Change type is valid in domain but not rendered by this renderer."""
 
 
 class ChangeSpecificationRenderer:
-    """Map ChangeSpecification → module inputs for DNS and security group rules."""
+    """Map ChangeSpecification → module inputs for all four change kinds."""
 
     def render(
         self,
@@ -63,8 +72,13 @@ class ChangeSpecificationRenderer:
             return self._render_dns(change, context=ctx)
         if isinstance(change, SecurityGroupRuleChange):
             return self._render_security_group_rule(change)
+        if isinstance(change, LoadBalancerRouteChange):
+            return self._render_load_balancer_route(change, context=ctx)
+        if isinstance(change, TlsBindingChange):
+            return self._render_tls_binding(change)
+        kind = getattr(change, "change_kind", type(change))
         raise UnsupportedChangeForRenderer(
-            f"renderer does not support change_kind={change.change_kind!r} in Milestone 5",
+            f"renderer does not support change_kind={kind!r}",
             field="change_kind",
         )
 
@@ -99,8 +113,6 @@ class ChangeSpecificationRenderer:
                 "ManagedBy": "terraform",
             },
         }
-        # hosted_zone_name is informational on the domain model; zone ownership
-        # for Terraform is always the environment-bound zone_id.
         if change.hosted_zone_name is not None:
             variables["tags"] = {
                 **variables["tags"],
@@ -123,15 +135,7 @@ class ChangeSpecificationRenderer:
         if change.to_port is not None:
             rule["to_port"] = change.to_port
         if change.cidr_blocks:
-            # One Terraform rule resource per CIDR keeps ownership explicit.
-            # For a single CIDR (common case) emit one rule; multiple CIDRs expand.
-            rules = [
-                {
-                    **rule,
-                    "cidr_ipv4": cidr,
-                }
-                for cidr in change.cidr_blocks
-            ]
+            rules = [{**rule, "cidr_ipv4": cidr} for cidr in change.cidr_blocks]
         else:
             rules = [
                 {
@@ -152,6 +156,73 @@ class ChangeSpecificationRenderer:
             },
         }
         return TerraformModuleInput(module_name="security_group", variables=variables)
+
+    def _render_load_balancer_route(
+        self,
+        change: LoadBalancerRouteChange,
+        *,
+        context: RenderContext,
+    ) -> TerraformModuleInput:
+        key = f"{change.load_balancer_name}:{change.listener_port}"
+        listener_arn = context.listener_arns.get(key)
+        if not listener_arn:
+            raise DomainValidationError(
+                "listener_arns render context must include "
+                f"{key!r} (environment-bound; no live AWS lookup)",
+                field="listener_arns",
+            )
+        if not listener_arn.startswith("arn:aws:elasticloadbalancing:"):
+            raise DomainValidationError(
+                "listener_arns values must be ELB listener ARNs",
+                field="listener_arns",
+            )
+
+        action = self._lb_action(change.route_action)
+        variables: dict[str, Any] = {
+            "listener_arn": listener_arn,
+            "priority": change.priority,
+            "path_pattern": change.path_pattern,
+            "host_header": change.host_header,
+            "action": action,
+            "tags": {
+                "Project": "switchyard",
+                "Component": "listener_rule",
+                "ManagedBy": "terraform",
+                "LoadBalancerName": change.load_balancer_name,
+                "ListenerProtocol": change.listener_protocol.value,
+            },
+        }
+        return TerraformModuleInput(module_name="listener_rule", variables=variables)
+
+    def _render_tls_binding(self, change: TlsBindingChange) -> TerraformModuleInput:
+        # Certificate reference/attachment only — never ACM issuance.
+        # is_default records intent; alb module owns listener default certificate_arn.
+        variables: dict[str, Any] = {
+            "listener_arn": change.listener_arn,
+            "certificate_arn": change.certificate_arn,
+            "is_default": change.default_certificate,
+            "tags": {
+                "Project": "switchyard",
+                "Component": "tls",
+                "ManagedBy": "terraform",
+                "DesiredAction": change.action.value,
+            },
+        }
+        return TerraformModuleInput(module_name="tls", variables=variables)
+
+    @staticmethod
+    def _lb_action(action: FixedResponseAction | ForwardAction) -> dict[str, Any]:
+        if isinstance(action, FixedResponseAction):
+            return {
+                "type": "fixed-response",
+                "status_code": str(action.status_code),
+                "content_type": action.content_type,
+                "message_body": action.message_body,
+            }
+        return {
+            "type": "forward",
+            "target_group_arn": action.target_group_arn,
+        }
 
     @staticmethod
     def _aws_protocol(protocol: IpProtocol) -> str:

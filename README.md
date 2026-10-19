@@ -17,7 +17,7 @@ the final public portfolio README.
 |---|---|
 | Engineering contract | `SWITCHYARD_BUILD_SPEC.md` |
 | Build plan (approved) | `BUILD_PLAN.md` |
-| Current milestone | **5 complete — SG/DNS modules and ChangeSpec renderer** |
+| Current milestone | **6 complete — ALB, listener rule, TLS modules** |
 
 ## Architecture (preview)
 

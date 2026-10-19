@@ -4,9 +4,10 @@ This document is the engineering plan derived from `SWITCHYARD_BUILD_SPEC.md`.
 It is a requirements-driven design, not a literal copy of the specification's
 suggested code or layout.
 
-**Status:** approved (including zero-cost constraint and git ownership rule)  
-**Current milestone:** Milestone 5 complete — stop for owner commit handoff before Milestone 6  
+**Status:** approved (including zero-cost, git ownership, and sole-author attribution)
+**Current milestone:** Milestone 6 complete — stop for owner commit handoff before Milestone 7
 **Git ownership:** human operator only — agents never commit or push
+**Authorship:** human operator is the sole author and committer
 
 ---
 
@@ -46,13 +47,43 @@ After finishing a milestone’s implementation and validation, the agent must:
 4. List all files created, modified, or deleted.
 5. Separate changes into logical commit groups when more than one commit is
    appropriate.
-6. Give the exact suggested commit message for each group.
+6. Give the exact suggested commit message for each group (**no** tool
+   attribution trailers — see §0b).
 7. Give the exact git commands the owner can run themselves.
 8. **Wait** for the owner to confirm they committed before starting the next
    milestone.
 
 Never interpret “finish the milestone”, “proceed”, “continue”, or similar
 language as permission to commit.
+
+---
+
+## 0b. Permanent rule: sole human authorship (no tool attribution)
+
+**The human repository owner is the sole author and committer of repository
+commits.** This rule is permanent and applies to every future milestone.
+
+### Never add tool or AI attribution
+
+Do **not** add any of the following to commit messages, Git metadata, source
+headers, documentation, patches, or generated files:
+
+- `Co-authored-by`
+- `Signed-off-by` (unless the owner explicitly requests it for their own use)
+- `Generated-by`
+- Cursor / Cursor Agent
+- Claude / AI / model / assistant branding
+- Any other tool, agent, or vendor attribution trailers or banners
+
+### Agents must not
+
+- Stage, commit, push, or rewrite history
+- Modify Git author/committer attribution
+- Insert attribution into suggested commit messages
+- Add attribution headers or footers to source, docs, or generated artifacts
+
+Suggested commit messages must remain plain conventional commits with no
+tool trailer lines.
 
 ---
 
@@ -123,35 +154,38 @@ These decisions supersede earlier proposals where they differ.
 
 1. **Human-only Git ownership:** Agents never commit or push; owner alone
    owns history. (§0a)
-2. **Zero cost DoD:** No milestone requires paid AWS (or any paid cloud) to
+2. **Sole human authorship:** No Co-authored-by / Generated-by / Cursor / AI
+   or other tool attribution in commits, metadata, headers, docs, or generated
+   files. Owner is the sole author and committer. (§0b)
+3. **Zero cost DoD:** No milestone requires paid AWS (or any paid cloud) to
    satisfy Definition of Done. (§0)
-3. **State isolation:** Separate Terraform state roots for `dev`, `staging`, and
+4. **State isolation:** Separate Terraform state roots for `dev`, `staging`, and
    `prod`. Do **not** use workspaces.
-4. **State locking:** S3 native lockfile design in Terraform config. Do **not**
+5. **State locking:** S3 native lockfile design in Terraform config. Do **not**
    introduce DynamoDB solely for locking. Creating a real state bucket is
    **optional** and not required for DoD (local backends + config review cover
    the required path).
-5. **Request → Terraform boundary:**
+6. **Request → Terraform boundary:**
    `API request → domain model → normalized change specification → Terraform
    inputs / module composition`. The API must never construct arbitrary HCL from
    user-supplied strings.
-6. **Human approval:** For optional real infrastructure deployment, GitHub
+7. **Human approval:** For optional real infrastructure deployment, GitHub
    Environment approval is the authoritative human boundary. The API may expose
    `awaiting_approval` as workflow state only. Do **not** build a second
    independent approval system into the API. Required DoD proves the approval
    *boundary behavior* via local/CI simulation of the gate.
-7. **Duplicate DNS detection:** Local/CI uses controlled inventory fixtures.
+8. **Duplicate DNS detection:** Local/CI uses controlled inventory fixtures.
    Optional AWS path may reconcile against Route 53. Document the distinction;
    do not pretend OPA alone knows current infrastructure.
-8. **CIDR overlap:** Same principle—requested config + managed inventory
+9. **CIDR overlap:** Same principle—requested config + managed inventory
    fixtures locally; optional authoritative cloud state only on the optional path.
-9. **Environments:** All three environments have real Terraform configuration
-   and isolated state **design**. None must be provisioned in AWS for DoD.
-10. **CI:** Every PR always runs fmt, validate, lint, unit tests, policy tests,
+10. **Environments:** All three environments have real Terraform configuration
+    and isolated state **design**. None must be provisioned in AWS for DoD.
+11. **CI:** Every PR always runs fmt, validate, lint, unit tests, policy tests,
     and fixture-based plan evaluation. No AWS credentials. No cloud deploy.
-11. **Persistence:** SQLite behind a repository interface. Do **not** add
+12. **Persistence:** SQLite behind a repository interface. Do **not** add
     PostgreSQL merely for appearance.
-12. **Saved plan guarantee (core property):** Record the plan artifact hash and
+13. **Saved plan guarantee (core property):** Record the plan artifact hash and
     verify it immediately before apply. Mandatory architecture.
 
 ---
@@ -428,9 +462,9 @@ Agents never stage or commit; the owner commits after reviewing the handoff.
 
 **Zero-cost required**
 
-- [ ] All four request types render to Terraform inputs.
-- [ ] Modules expose outputs needed for cross-stack refs / verification contracts.
-- [ ] Modules are `fmt`/`validate`/test clean; **no required apply** of ALB/NLB.
+- [x] All four request types render to Terraform inputs.
+- [x] Modules expose outputs needed for cross-stack refs / verification contracts.
+- [x] Modules are `fmt`/`validate`/test clean; **no required apply** of ALB/NLB.
 
 **Optional AWS validation:** live plan/apply explicitly opted into by the operator.
 
